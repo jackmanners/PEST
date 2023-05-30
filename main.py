@@ -26,6 +26,9 @@ wlan.active(True)
 wlan.connect(ssid, password)
 gc.collect()
 
+### TIME SETTINGS ###
+measurement_interval = 600 # Seconds
+
 def check_connection():
     while not wlan.isconnected():
         status = wlan.status()
@@ -62,6 +65,15 @@ def to_snapi(data):
 def avg(list):
     avg = sum(list)/len(list)
     return round(avg, 2)
+
+
+def adjust_measurement_interval():
+    current_time = utime.localtime()
+    minutes = current_time[4]
+    seconds = current_time[5]
+    seconds_until_next_interval = measurement_interval - (minutes % 10) * 60 - seconds
+
+    utime.sleep(seconds_until_next_interval)
 
 
 ### MAIN PROGRAM ###
@@ -109,6 +121,7 @@ while True:
     
     data = json.dumps(data)
     to_snapi(data)
-    time_diff = utime.ticks_diff(utime.ticks_ms(), starttime)/1000       
-    utime.sleep(5*60-time_diff)
+    time_diff = utime.ticks_diff(utime.ticks_ms(), starttime)/1000
+    adjust_measurement_interval()
+    utime.sleep(measurement_interval - time_diff)
     gc.collect()
