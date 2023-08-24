@@ -27,7 +27,7 @@ wlan.connect(ssid, password)
 gc.collect()
 
 ### TIME SETTINGS ###
-measurement_interval = 600 # Seconds
+measurement_interval = 10 # Seconds
 
 def check_connection():
     while not wlan.isconnected():
@@ -48,20 +48,18 @@ def token():
         "Content-Type": "application/json",
         "Authorization": "Basic amFjay5tYW5uZXJzQGZsaW5kZXJzLmVkdS5hdTpaYXExTWprbA=="}
     r = urequests.post(url, headers=headers).json()
-
+    
     return r['access_token']
 
 
-def to_snapi(data):   
-    url = "http://www.snapi.space/api/participant/{}/pest/receive".format(lab_id)
+def to_snapi(token, data):    
+    url = "http://www.snapi.space/api/pest/upload"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer "+token()}
+        "Authorization": "Bearer "+token}
     
     r = urequests.post(url, headers=headers, data=data)
-    status = r.text
-
-
+    
 def avg(list):
     avg = sum(list)/len(list)
     return round(avg, 2)
@@ -76,8 +74,46 @@ def adjust_measurement_interval():
     utime.sleep(seconds_until_next_interval)
 
 
+def adjust_coefficients_by_cct(cct):
+    if cct < 3000:
+        return {
+            "red": 0.1,
+            "green": 0.2,
+            "blue": 0.6
+        }
+    elif cct < 5000:
+        return {
+            "red": 0.1,
+            "green": 0.3,
+            "blue": 0.5
+        }
+    else:
+        return {
+            "red": 0.1,
+            "green": 0.3,
+            "blue": 0.4
+        }
+
+def calculate_melanopic_lux(data):
+    melanopic_coefficients = adjust_coefficients_by_cct(data["cct"])
+    
+    w_red = data["red"] * melanopic_coefficients["red"]
+    w_green = data["green"] * melanopic_coefficients["green"]
+    w_blue = data["blue"] * melanopic_coefficients["blue"]
+    
+    melanopic_value = (w_red + w_green + w_blue)
+    total_rgbw_sum = data["red"] + data["green"] + data["blue"]
+    
+    relative_melanopic_value  = melanopic_value / total_rgbw_sum if total_rgbw_sum != 0 else 0
+
+    # Scale by overall illuminance (ALS)
+    melanopic_lux = relative_melanopic_value * data["white"]
+
+    return melanopic_lux
+
 ### MAIN PROGRAM ###
 check_connection()
+token = token()
 
 while True:
     ## Re-define data ##
@@ -103,25 +139,23 @@ while True:
         print("NETWORK NOT CONNECTED")
         datetime = utime.time()*1000
     
-    tempC, presPa, humRH = sensor.atmos.values()
     rgb = sensor.color.readRGB()
-    precisionTemp = sensor.temp.readTempC()
-    lux = sensor.light.read()
-    
-    ## Runs after collecting 10 chunks of data ##
-    data = OrderedDict([
-        ("pest_id", pest_id),
-        ("epochtime", datetime),
-        ("temp", precisionTemp),
-        ("pres_hPa", presPa/100),
-        ("humRh", humRH),
-        ("lux", lux),
-        ("cct", rgb["cct"])
-    ])
+    melanopic_lux = calculate_melanopic_lux(rgb)
+
+    data = {
+        "pest_id": "jack_pest",
+        "recording_id": "recording_1",
+        "data": {
+            "rgb": rgb,
+            "melanopic_lux_estimate": melanopic_lux
+        }
+    }
     
     data = json.dumps(data)
-    to_snapi(data)
+    to_snapi(token, data)
+    
     time_diff = utime.ticks_diff(utime.ticks_ms(), starttime)/1000
     adjust_measurement_interval()
     utime.sleep(measurement_interval - time_diff)
+    data = None
     gc.collect()

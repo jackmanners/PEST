@@ -10,23 +10,29 @@ lab_id = 'jack'
 ### SENSOR INITIALIZING ###
 class pico_sensors:
     def __init__(self):
-        self.atmos = PiicoDev_BME280()
-        self.light = PiicoDev_VEML6030()
-        self.color = PiicoDev_VEML6030()
-        self.color = PiicoDev_VEML6040()
-        self.display = create_PiicoDev_SSD1306()
-        self.temp = PiicoDev_TMP117()
+        try:
+            self.atmos = PiicoDev_BME280()
+            self.zeroAlt = self.atmos.altitude()
+        except: self.atmos = None
+        try: self.light = PiicoDev_VEML6030()
+        except: self.light = None
+        try: self.color = PiicoDev_VEML6040()
+        except: self.color = None
+        try: self.temp = PiicoDev_TMP117()
+        except: self.temp = None
         
-        self.zeroAlt = self.atmos.altitude()
+        try: self.display = create_PiicoDev_SSD1306()
+        except: self.display = None
+        
         
     def test_sensors(self):
-        if not self.atmos.values():
+        if not self.atmos:
             print("Atmospheric sensor not working")
-        if not self.light.read():
+        if not self.light:
             print("Light sensor not working")
-        if not self.color.readRGB():
+        if not self.color:
             print("Color sensor not working")
-        if not self.temp.readTempC():
+        if not self.temp:
             print("Temperature sensor not working")
         try:
             self.display.text("|Pico Sensor|", 0, 0, 1)
@@ -42,6 +48,6 @@ class wifiSetup:
         self.rPi_password = 'Zaq1Mjkl'
 
         ## Android hotspot ##
-        self.android_ssid = 'Android'
-        self.android_password = '12345678'
+        self.android_ssid = 'JMobi'
+        self.android_password = 'Zaq1Mjkl'
 
